@@ -70,6 +70,73 @@ function notifyEmail($notify) {
     }
 }
 
+/**
+ * PepPayRequest
+ * @param $InvoiceNumber
+ * @param $TerminalCode
+ * @param $MerchantCode
+ * @param $Amount
+ * @param $RedirectAddress
+ * @param string $Mobile
+ * @param string $Email
+ * @return mixed
+ */
+function PepPayRequest($InvoiceNumber, $TerminalCode, $MerchantCode, $Amount, $RedirectAddress, $Mobile = '', $Email = '')
+{
+    require_once(dirname(__FILE__) . '/includes/RSAProcessor.class.php');
+    $processor = new RSAProcessor(dirname(__FILE__) . '/includes/certificate.xml', RSAKeyType::XMLFile);
+    if (!function_exists('jdate')) {
+        require_once(dirname(__FILE__) . '/includes/jdf.php');
+    }
+    $data = array(
+        'InvoiceNumber' => $InvoiceNumber,
+        'InvoiceDate' => jdate('Y/m/d'),
+        'TerminalCode' => $TerminalCode,
+        'MerchantCode' => $MerchantCode,
+        'Amount' => $Amount,
+        'RedirectAddress' => $RedirectAddress,
+        'Timestamp' => date('Y/m/d H:i:s'),
+        'Action' => 1003,
+        'Mobile' => $Mobile,
+        'Email' => $Email
+    );
+
+    $sign_data = json_encode($data);
+    $sign_data = sha1($sign_data, true);
+    $sign_data = $processor->sign($sign_data);
+    $sign = base64_encode($sign_data);
+
+    $curl = curl_init('https://pep.shaparak.ir/Api/v1/Payment/GetToken');
+    curl_setopt($curl, CURLOPT_POST, 1);
+    curl_setopt($curl, CURLOPT_POSTFIELDS, json_encode($data));
+    curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($curl, CURLOPT_HTTPHEADER, array(
+            'Content-Type: application/json',
+            'Sign: ' . $sign
+        )
+    );
+    $result = json_decode(curl_exec($curl));
+    curl_close($curl);
+
+    return $result;
+}
+
+/**
+ * redirect
+ * @param $url
+ */
+function redirect($url)
+{
+    if ($url != '') {
+        if (headers_sent()) {
+            echo '<script type="text/javascript">window.location.assign("' . $url . '")</script>';
+        } else {
+            header("Location: $url");
+        }
+        exit();
+    }
+}
+
 if($action==='callback') {
     $tran_id  = $order_id  = $invoice_id;
     $ref_code = $_POST['SaleReferenceId'];
@@ -143,34 +210,30 @@ if($action==='callback') {
 else if($action==='send') {
     $order_id = $invoice_id . mt_rand(10, 100);
     $callback_URL   = $CONFIG['SystemURL']."/modules/gateways/$cb_gw_name/payment.php?a=callback&invoiceid=". $invoice_id.'&amount='.$amount;
-    $localDate		= date('Ymd');
-    $localTime		= date('Gis');
-    $additionalData	= '';
-    $payerId		= 0;
-    include_once('nusoap.php');
-    $parameters = array(
-        'terminalId' 		=> $modules['cb_gw_terminal_id'],
-        'userName' 			=> $modules['cb_gw_user'],
-        'userPassword' 		=> $modules['cb_gw_pass'],
-        'orderId' 			=> time(),
-        'amount' 			=> $amount,
-        'localDate' 		=> $localDate,
-        'localTime' 		=> $localTime,
-        'additionalData' 	=> $additionalData,
-        'callBackUrl' 		=> $callback_URL,
-        'payerId' 			=> $payerId
-    );
-    $client 	= new nusoap_client('https://bpm.shaparak.ir/pgwchannel/services/pgw?wsdl');
-    $namespace 	= 'http://interfaces.core.sw.bps.com/';
-    $result 	= $client->call('bpPayRequest', $parameters, $namespace);
-    if($client->fault) die("There was a problem connecting to bank");
-    $err = $client->getError();
-    if($err) die("Error : ". $err);
-    $res 		= explode (',',$result);
-    if($res[0] == "0") {
-        echo "<form name='$cb_gw_name' action='https://bpm.shaparak.ir/pgwchannel/startpay.mellat' method='post'>
-        <input type='hidden' id='RefId' name='RefId' value='". $res[1] ."'></form>
-        <script>document.forms['$cb_gw_name'].submit()</script>
-        <img src='/modules/gateways/$cb_gw_name/logo.png' alt='$cb_gw_name'>";
+
+    $Request = PepPayRequest($order_id, $modules['cb_gw_terminal_id'], $modules['cb_gw_merchant_id'], $amount, $callback_URL, '', $_POST['email']);
+
+    if (isset($Request) && $Request->IsSuccess) {
+        redirect('https://pep.shaparak.ir/payment.aspx?n=' . $Request->Token);
+    } else {
+        $message = isset($Request->Message) ? $Request->Message : 'خطای نامشخص';
+        echo '
+	<!DOCTYPE html> 
+	<html xmlns="http://www.w3.org/1999/xhtml" lang="fa">
+	<head>
+	<title>خطا در ارسال به بانک</title>
+	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+	<style>body{font-family:tahoma;text-align:center;margin-top:30px;}</style>
+	</head>
+	<body>
+		<div align="center" dir="rtl" style="font-family:tahoma;font-size:12px;border:1px dotted #c3c3c3; width:60%; margin: 50px auto 0px auto;line-height: 25px;padding-left: 12px;padding-top: 8px;">
+			<span style="color:#ff0000;"><b>خطا در ارسال به بانک</b></span><br/>
+			<p style="text-align:center;">' . $message . '</p>
+			<a href="' . $CONFIG['SystemURL'] . '/viewinvoice.php?id=' . $invoice_id . '">بازگشت</a><br/><br/>
+		</div>
+	</body>
+	</html>
+	';
     }
+
 }

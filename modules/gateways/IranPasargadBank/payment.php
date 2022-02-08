@@ -141,6 +141,7 @@ if($action==='callback') {
     }
 }
 else if($action==='send') {
+    $order_id = $invoice_id . mt_rand(10, 100);
     $callback_URL   = $CONFIG['SystemURL']."/modules/gateways/$cb_gw_name/payment.php?a=callback&invoiceid=". $invoice_id.'&amount='.$amount;
     $localDate		= date('Ymd');
     $localTime		= date('Gis');

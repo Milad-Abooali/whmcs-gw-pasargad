@@ -46,9 +46,8 @@ function IranPasargadBank_config()
         "FriendlyName" => ["Type" => "System", "Value" => "بانک پاسارگاد ایران"],
 
         // Gateway Setup
-        "cb_gw_terminal_id"  => ["FriendlyName" => "کد پذيرنده", "Type" => "text", "Size" => "50"],
-        "cb_gw_user"         => ["FriendlyName" => "نام کاربری", "Type" => "text", "Size" => "50"],
-        "cb_gw_pass"         => ["FriendlyName" => "رمز پذيرنده", "Type" => "text", "Size" => "50"],
+        "cb_gw_terminal_id"  => ["FriendlyName" => "شماره ترمینال", "Type" => "text", "Size" => "50"],
+        "cb_gw_merchant_id"  => ["FriendlyName" => "شماره فروشگاه", "Type" => "text", "Size" => "50"],
         "cb_gw_unit"         => ["FriendlyName" => "واحد پول سیستم", "Type" => "dropdown", "Options" => ["1" => "ریال", "10" => "تومان"],"Description" => "لطفا واحد پول سیستم خود را انتخاب کنید."],
 
         // Email Notification

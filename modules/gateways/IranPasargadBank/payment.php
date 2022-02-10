@@ -1,4 +1,4 @@
-<?php
+<?php /** @noinspection PhpUndefinedClassInspection */
 /**
  **************************************************************************
  * IranPasargadBank Gateway
@@ -255,15 +255,16 @@ function PepVerifyRequest($InvoiceNumber, $InvoiceDate, $TerminalCode, $Merchant
  */
 function display_error($pay_status = '', $tran_id = '', $order_id = '', $amount = '', $message = '')
 {
-    global $GATEWAY, $CONFIG;
+    global $modules, $CONFIG, $cb_gw_name;
     if ($pay_status == 'retry') {
+        $client_mess='';
         $page_title = 'خطای موقت در پرداخت';
         $admin_mess = 'در هنگام بازگشت خریدار از بانک سرور بانک پاسخ نداد ، از خریدار درخواست شد صفحه را رفرش کند';
         $retry_mess = '
-			<div style="margin:15px 0px 21px 0px;font-size: 12px;">
+			<div style="margin:15px 0 21px 0;font-size: 12px;">
 				سرور درگاه اینترنتی <span style="color:#ff0000;">به صورت موقت</span> با مشکل مواجه شده است ، جهت تکمیل تراکنش لحظاتی بعد بر روی دکمه زیر کلیک کنید
 			</div>
-			<div style="margin:20px 0px 25px 0px;color:#008800;" id="reqreload">
+			<div style="margin:20px 0 25px 0;color:#008800;" id="reqreload">
 				<button onclick="reload_page()">تلاش مجدد</button>
 			</div>
 			<script>
@@ -304,7 +305,7 @@ function display_error($pay_status = '', $tran_id = '', $order_id = '', $amount 
 	<style>body{font-family:tahoma;text-align:center;margin-top:30px;}</style>
 	</head>
 	<body>
-		<div align="center" dir="rtl" style="font-family:tahoma;font-size:12px;border:1px dotted #c3c3c3; width:60%; margin: 50px auto 0px auto;line-height: 25px;padding-left: 12px;padding-top: 8px;">
+		<div dir="rtl" style="font-family:tahoma;font-size:12px;border:1px dotted #c3c3c3; width:60%; margin: 50px auto 0 auto;line-height: 25px;padding-left: 12px;padding-top: 8px;">
 			<span style="color:#ff0000;"><b>' . $page_title . '</b></span><br/>';
     if (isset($retry_mess)) {
         echo $retry_mess;
@@ -313,11 +314,12 @@ function display_error($pay_status = '', $tran_id = '', $order_id = '', $amount 
     }
     echo '</div>
 	</body>
-	</html>
-	';
-    if (isset($admin_mess)) {
-        logTransaction($GATEWAY["name"], array('invoiceid' => $order_id, 'order_id' => $order_id, 'amount' => $amount, 'tran_id' => $tran_id, 'status' => 'unpaid'), "ناموفق - $admin_mess");
-    }
+	</html>';
+    logTransaction($modules["name"]  ,  array( 'invoiceid'=>$order_id,'order_id'=>$order_id,'amount'=>$amount." ".(($modules['cb_gw_unit']>1) ? 'Toman' : 'Rial'),'tran_id'=>$tran_id, 'status'=>'unpaid' )  ,"ناموفق - $admin_mess");
+    $notify['title'] = $cb_gw_name.' | '."تراکنش ناموفق";
+    $notify['text']  = "\n\rGateway: $cb_gw_name\n\rAmount: $amount ".(($modules['cb_gw_unit']>1) ? 'Toman' : 'Rial')."\n\rOrder: $order_id\n\rInvoice: $order_id\n\r";
+    if($modules['cb_email_on_error']) notifyEmail($notify);
+    if($modules['cb_telegram_on_error']) notifyTelegram($notify);
     exit;
 }
 
@@ -330,10 +332,10 @@ if($action==='callback') {
     $MerchantID = $modules['cb_gw_merchant_id'];
     if(!empty($invoice_id)) {
         $cb_output['invoice_id'] = $invoice_id;
-
+        $get_amount=null;
         if ($order_id == substr($InvoiceNumber, 0, -2)) {
             $invoiceid = checkCbInvoiceID($order_id, $modules['name']);
-            if (isset($invoice_id) && !empty($invoiceid)) {
+            if (!empty($invoiceid)) {
                 checkCbTransID($TransactionReferenceID);
                 if ($TransactionReferenceID != '') {
                     $checkResult = PepCheckTransactionResult($TransactionReferenceID);
@@ -348,8 +350,12 @@ if($action==='callback') {
                     } else {
                         $Request = PepVerifyRequest($InvoiceNumber, $InvoiceDate, $TerminalID, $MerchantID, $amount);
                         if (isset($Request) && $Request->IsSuccess) {
-                            addInvoicePayment($invoice_id, $TransactionReferenceID, $amount/10, 0, $cb_gw_name);
-                            logTransaction($modules["name"], array('invoiceid' => $invoiceid, 'order_id' => $invoiceid, 'amount' => $amount/10, 'tran_id' => $TransactionReferenceID, 'refcode' => $TransactionReferenceID, 'status' => 'paid'), "موفق");
+                            addInvoicePayment($invoice_id, $TransactionReferenceID, $amount, 0, $cb_gw_name);
+                            logTransaction($modules["name"]  ,  array( 'invoiceid'=>$invoice_id,'order_id'=>$invoice_id,'amount'=>$amount." ".(($modules['cb_gw_unit']>1) ? 'Toman' : 'Rial'),'tran_id'=>$TransactionReferenceID, 'refcode'=>$TransactionReferenceID, 'status'=>'paid' )  ,"موفق");
+                            $notify['title'] = $cb_gw_name.' | '."تراکنش موفق";
+                            $notify['text']  = "\n\rGateway: $cb_gw_name\n\rAmount: $amount ".(($modules['cb_gw_unit']>1) ? 'Toman' : 'Rial')."\n\rOrder: $order_id\n\rInvoice: $invoice_id\n\r";
+                            if($modules['cb_email_on_success']) notifyEmail($notify);
+                            if($modules['cb_telegram_on_success']) notifyTelegram($notify);
                             $action = $CONFIG['SystemURL'] . "/viewinvoice.php?id=" . $invoice_id;
                             header('Location: ' . $action);
                             //print("<pre>".print_r($cb_output,true)."</pre>");
@@ -397,8 +403,7 @@ else if($action==='send') {
 			<a href="' . $CONFIG['SystemURL'] . '/viewinvoice.php?id=' . $invoice_id . '">بازگشت</a><br/><br/>
 		</div>
 	</body>
-	</html>
-	';
+	</html>';
     }
 
 }

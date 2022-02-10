@@ -15,17 +15,14 @@
  **************************************************************************
  */
 
-$cb_gw_name = 'IranPasargadBank';
-
 /**
  * Meta Data
  * @return array
  */
 function IranPasargadBank_MetaData()
 {
-    global $cb_gw_name;
     return [
-        "DisplayName"                   => $cb_gw_name,
+        "DisplayName"                   => 'IranPasargadBank',
         "gatewayType"                   => "Bank", // Only set if the module is a Bank Module
         "failedEmail"                   => "Credit Card Payment Failed",
         "successEmail"                  => "Custom Credit Card Payment Template", // You can utilise custom templates here
@@ -79,11 +76,10 @@ function IranPasargadBank_config()
  */
 function IranPasargadBank_link($params)
 {
-    global $cb_gw_name;
-    return '<form method="post" action="modules/gateways/'.$cb_gw_name.'/payment.php?a=send">
+    return '<form method="post" action="modules/gateways/IranPasargadBank/payment.php?a=send">
 	<input type="hidden" name="invoiceid" value="'.$params['invoiceid'].'">
 	<input type="hidden" name="amount" value="'.round(($params['amount']-'.00') * $params['cb_gw_unit']).'">
 	<input type="hidden" name="email" value="'.$params['clientdetails']['email']. '">
 	<input type="submit" name="pay" value="پرداخت"></form>
-	<img src="/modules/gateways/'.$cb_gw_name.'/logo.png" alt="Mellat Bank" style="max-width:170px;height:45px;">';
+	<img src="/modules/gateways/IranPasargadBank/logo.png" alt="Pasargad Bank" style="max-width:170px;height:45px;">';
 }

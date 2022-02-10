@@ -122,6 +122,37 @@ function PepPayRequest($InvoiceNumber, $TerminalCode, $MerchantCode, $Amount, $R
 }
 
 /**
+ * Pep Check Transaction Result
+ * @param $TransactionReferenceID
+ * @param string $InvoiceNumber
+ * @param string $InvoiceDate
+ * @param string $TerminalCode
+ * @param string $MerchantCode
+ * @return mixed
+ */
+function PepCheckTransactionResult($TransactionReferenceID, $InvoiceNumber = '', $InvoiceDate = '', $TerminalCode = '', $MerchantCode = '')
+{
+    $data = array(
+        'InvoiceNumber' => $InvoiceNumber,
+        'InvoiceDate' => $InvoiceDate,
+        'TerminalCode' => $TerminalCode,
+        'MerchantCode' => $MerchantCode,
+        'TransactionReferenceID' => $TransactionReferenceID
+    );
+    $curl = curl_init('https://pep.shaparak.ir/Api/v1/Payment/CheckTransactionResult');
+    curl_setopt($curl, CURLOPT_POST, 1);
+    curl_setopt($curl, CURLOPT_POSTFIELDS, json_encode($data));
+    curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($curl, CURLOPT_HTTPHEADER, array(
+            'Content-Type: application/json'
+        )
+    );
+    $result = json_decode(curl_exec($curl));
+    curl_close($curl);
+    return $result;
+}
+
+/**
  * redirect
  * @param $url
  */
@@ -137,71 +168,205 @@ function redirect($url)
     }
 }
 
+/**
+ * Pep Reversal Request
+ * @param $InvoiceNumber
+ * @param $InvoiceDate
+ * @param $TerminalCode
+ * @param $MerchantCode
+ * @return mixed
+ */
+function PepReversalRequest($InvoiceNumber, $InvoiceDate, $TerminalCode, $MerchantCode)
+{
+    require_once(dirname(__FILE__) . '/includes/RSAProcessor.class.php');
+    $processor = new RSAProcessor(dirname(__FILE__) . '/includes/certificate.xml', RSAKeyType::XMLFile);
+    $data = array(
+        'InvoiceNumber' => $InvoiceNumber,
+        'InvoiceDate' => $InvoiceDate,
+        'TerminalCode' => $TerminalCode,
+        'MerchantCode' => $MerchantCode,
+        'Timestamp' => date('Y/m/d H:i:s')
+    );
+    $sign_data = json_encode($data);
+    $sign_data = sha1($sign_data, true);
+    $sign_data = $processor->sign($sign_data);
+    $sign = base64_encode($sign_data);
+    $curl = curl_init('https://pep.shaparak.ir/Api/v1/Payment/RefundPayment');
+    curl_setopt($curl, CURLOPT_POST, 1);
+    curl_setopt($curl, CURLOPT_POSTFIELDS, json_encode($data));
+    curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($curl, CURLOPT_HTTPHEADER, array(
+            'Content-Type: application/json',
+            'Sign: ' . $sign
+        )
+    );
+    $result = json_decode(curl_exec($curl));
+    curl_close($curl);
+    return $result;
+}
+
+/**
+ * Pep Verify Request
+ * @param $InvoiceNumber
+ * @param $InvoiceDate
+ * @param $TerminalCode
+ * @param $MerchantCode
+ * @param $Amount
+ * @return mixed
+ */
+function PepVerifyRequest($InvoiceNumber, $InvoiceDate, $TerminalCode, $MerchantCode, $Amount)
+{
+    require_once(dirname(__FILE__) . '/includes/RSAProcessor.class.php');
+    $processor = new RSAProcessor(dirname(__FILE__) . '/includes/certificate.xml', RSAKeyType::XMLFile);
+    $data = array(
+        'InvoiceNumber' => $InvoiceNumber,
+        'InvoiceDate' => $InvoiceDate,
+        'TerminalCode' => $TerminalCode,
+        'MerchantCode' => $MerchantCode,
+        'Amount' => $Amount,
+        'Timestamp' => date('Y/m/d H:i:s')
+    );
+    $sign_data = json_encode($data);
+    $sign_data = sha1($sign_data, true);
+    $sign_data = $processor->sign($sign_data);
+    $sign = base64_encode($sign_data);
+    $curl = curl_init('https://pep.shaparak.ir/Api/v1/Payment/VerifyPayment');
+    curl_setopt($curl, CURLOPT_POST, 1);
+    curl_setopt($curl, CURLOPT_POSTFIELDS, json_encode($data));
+    curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($curl, CURLOPT_HTTPHEADER, array(
+            'Content-Type: application/json',
+            'Sign: ' . $sign
+        )
+    );
+    $result = json_decode(curl_exec($curl));
+    curl_close($curl);
+    return $result;
+}
+
+
+/**
+ * Display Error
+ * @param string $pay_status
+ * @param string $tran_id
+ * @param string $order_id
+ * @param string $amount
+ * @param string $message
+ */
+function display_error($pay_status = '', $tran_id = '', $order_id = '', $amount = '', $message = '')
+{
+    global $GATEWAY, $CONFIG;
+    if ($pay_status == 'retry') {
+        $page_title = 'خطای موقت در پرداخت';
+        $admin_mess = 'در هنگام بازگشت خریدار از بانک سرور بانک پاسخ نداد ، از خریدار درخواست شد صفحه را رفرش کند';
+        $retry_mess = '
+			<div style="margin:15px 0px 21px 0px;font-size: 12px;">
+				سرور درگاه اینترنتی <span style="color:#ff0000;">به صورت موقت</span> با مشکل مواجه شده است ، جهت تکمیل تراکنش لحظاتی بعد بر روی دکمه زیر کلیک کنید
+			</div>
+			<div style="margin:20px 0px 25px 0px;color:#008800;" id="reqreload">
+				<button onclick="reload_page()">تلاش مجدد</button>
+			</div>
+			<script>
+				function reload_page(){
+					document.getElementById("reqreload").innerHTML = "در حال تلاش مجدد لطفا صبر کنید ..";
+					location.reload();
+				}
+			</script>';
+    } elseif ($pay_status == 'reversal_done') {
+        $page_title = 'مشکل در ارائه خدمات';
+        $admin_mess = 'خریدار مبلغ را پرداخت کرد اما در هنگام بازگشت از بانک مشکلی در ارائه خدمات رخ داد ، دستور بازگشت وجه به حساب خریدار در بانک ثبت شد';
+        $client_mess = 'پرداخت شما با شماره پیگیری ' . $tran_id . ' با موفقیت در بانک انجام شده است اما در ارائه خدمات مشکلی رخ داده است !<br />دستور بازگشت وجه به حساب شما در بانک ثبت شده است ، در صورتی که وجه پرداختی تا ساعات آینده به حساب شما بازگشت داده نشد با پشتیبانی تماس بگیرید (نهایت مدت زمان بازگشت به حساب 72 ساعت می باشد)';
+    } elseif ($pay_status == 'reversal_error') {
+        $page_title = 'مشکل در ارائه خدمات';
+        $admin_mess = 'خریدار مبلغ را پرداخت کرد اما در هنگام بازگشت از بانک مشکلی در ارائه خدمات رخ داد ، دستور بازگشت وجه به حساب خریدار در بانک ثبت شد اما متاسفانه با خطا روبرو شد ، به این خریدار باید یا خدمات ارائه شود یا وجه استرداد گردد';
+        $client_mess = 'پرداخت شما با شماره پیگیری ' . $tran_id . ' با موفقیت در بانک انجام شده است اما در ارائه خدمات مشکلی رخ داده است !<br />به منظور ثبت دستور بازگشت وجه به حساب شما در بانک اقدام شد اما متاسفانه با خطا روبرو شد ، لطفا به منظور دریافت خدمات و یا استرداد وجه پرداختی با پشتیبانی تماس بگیرید';
+    } elseif ($pay_status == 'order_not_exist') {
+        $page_title = 'سفارش یافت نشد';
+        $admin_mess = 'سفارش در سایت یافت نشد';
+        $client_mess = 'متاسفانه سفارش شما در سایت یافت نشد ! در صورتی که وجه پرداختی از حساب بانکی شما کسر شده باشد به صورت خودکار از سوی بانک به حساب شما باز خواهد گشت (نهایت مدت زمان بازگشت به حساب 72 ساعت می باشد)';
+    } elseif ($pay_status == 'order_not_for_this_person') {
+        $page_title = $admin_mess = 'شماره سفارش نادرست است';
+        $client_mess = 'شماره سفارش نادرست است ؛ در صورت نیاز به پشتیبانی تماس بگیرید';
+    } elseif ($pay_status == 'invoice_id_is_blank') {
+        $page_title = 'خطا در پارامتر ورودی';
+        $admin_mess = 'پس از بازگشت از بانک شماره سفارش موجود نبود';
+        $client_mess = 'متاسفانه پارامتر ورودی شما معتبر نیست ! در صورتی که وجه پرداختی از حساب بانکی شما کسر شده باشد به صورت خودکار از سوی بانک به حساب شما باز خواهد گشت (نهایت مدت زمان بازگشت به حساب 72 ساعت می باشد)';
+    } else {
+        $page_title = $admin_mess = 'پرداخت انجام نشد';
+        $client_mess = $message;
+    }
+    echo '
+	<!DOCTYPE html> 
+	<html xmlns="http://www.w3.org/1999/xhtml" lang="fa">
+	<head>
+	<title>' . $page_title . '</title>
+	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+	<style>body{font-family:tahoma;text-align:center;margin-top:30px;}</style>
+	</head>
+	<body>
+		<div align="center" dir="rtl" style="font-family:tahoma;font-size:12px;border:1px dotted #c3c3c3; width:60%; margin: 50px auto 0px auto;line-height: 25px;padding-left: 12px;padding-top: 8px;">
+			<span style="color:#ff0000;"><b>' . $page_title . '</b></span><br/>';
+    if (isset($retry_mess)) {
+        echo $retry_mess;
+    } else {
+        echo '<p style="text-align:right;margin-right:8px;">' . $client_mess . '</p><a href="' . $CONFIG['SystemURL'] . '/viewinvoice.php?id=' . $order_id . '">بازگشت >></a><br/><br/>';
+    }
+    echo '</div>
+	</body>
+	</html>
+	';
+    if (isset($admin_mess)) {
+        logTransaction($GATEWAY["name"], array('invoiceid' => $order_id, 'order_id' => $order_id, 'amount' => $amount, 'tran_id' => $tran_id, 'status' => 'unpaid'), "ناموفق - $admin_mess");
+    }
+    exit;
+}
+
 if($action==='callback') {
     $tran_id  = $order_id  = $invoice_id;
-    $ref_code = $_POST['SaleReferenceId'];
+    $TransactionReferenceID = isset($_REQUEST['tref']) ? $_REQUEST['tref'] : '';
+    $InvoiceNumber = isset($_REQUEST['iN']) ? $_REQUEST['iN'] : '';
+    $InvoiceDate = isset($_REQUEST['iD']) ? $_REQUEST['iD'] : '';
+    $TerminalID = $modules['cb_gw_terminal_id'];
+    $MerchantID = $modules['cb_gw_merchant_id'];
     if(!empty($invoice_id)) {
         $cb_output['invoice_id'] = $invoice_id;
-        if(!empty($order_id) && !empty($tran_id) && !empty($ref_code)) {
-            $cb_output['tran_id'] = $tran_id;
-            $invoice_id = checkCbInvoiceID($invoice_id, $modules['name']);
-            $results = select_query("tblinvoices", "", array("id" => $invoice_id));
-            $data = mysql_fetch_array($results);
-            $db_amount = strtok($data['total'], '.');
-            if ($_POST['ResCode'] == '0') {
-                include_once('nusoap.php');
-                $client = new nusoap_client('https://bpm.shaparak.ir/pgwchannel/services/pgw?wsdl');
-                $namespace='http://interfaces.core.sw.bps.com/';
-                $parameters = array(
-                    'terminalId' 		=> $modules['cb_gw_terminal_id'],
-                    'userName' 			=> $modules['cb_gw_user'],
-                    'userPassword' 		=> $modules['cb_gw_pass'],
-                    'orderId'           => $_POST['SaleOrderId'],
-                    'saleOrderId'       => $_POST['SaleOrderId'],
-                    'saleReferenceId'   => $_POST['SaleReferenceId']
-                );
-                $cb_output['res']['result'] = $bpVerifyRequest = $client->call('bpVerifyRequest', $parameters, $namespace);
-                if($bpVerifyRequest == 0) {
-                    $bpSettleRequest = $client->call('bpSettleRequest', $parameters, $namespace);
-                    if($bpSettleRequest == 0) {
-                        $cartNumber = $_POST['CardHolderPan'];
-                        addInvoicePayment($invoice_id, $ref_code, $amount, 0, $cb_gw_name);
-                        logTransaction($modules["name"], array('invoiceid' => $invoice_id,'order_id' => $order_id,'amount' => $amount." ".(($modules['cb_gw_unit']>1) ? 'Toman' : 'Rial'),'tran_id' => $tran_id,'RefId' => $_POST['RefId'],'SaleReferenceId' => $ref_code,'CardNumber' => $cartNumber,'status' => "OK"), "موفق");
-                        $notify['title'] = $cb_gw_name.' | '."تراکنش موفق";
-                        $notify['text']  = "\n\rGateway: $cb_gw_name\n\rAmount: $amount ".(($modules['cb_gw_unit']>1) ? 'Toman' : 'Rial')."\n\rOrder: $order_id\n\rInvoice: $invoice_id\n\rCart Number: $cartNumber";
-                        if($modules['cb_email_on_success']) notifyEmail($notify);
-                        if($modules['cb_telegram_on_success']) notifyTelegram($notify);
-                    }
-                    else {
-                        $client->call('bpReversalRequest', $parameters, $namespace);
-                        logTransaction($modules["name"], array('invoiceid' => $invoice_id,'order_id' => $order_id,'amount' => $amount." ".(($modules['cb_gw_unit']>1) ? 'Toman' : 'Rial'),'tran_id' => $tran_id, 'status' => $bpSettleRequest), "ناموفق");
-                        $notify['title'] = $cb_gw_name.' | '."تراکنش ناموفق";
-                        $notify['text']  = "\n\rGateway: $cb_gw_name\n\rAmount: $amount ".(($modules['cb_gw_unit']>1) ? 'Toman' : 'Rial')."\n\rOrder: $order_id\n\rInvoice: $invoice_id\n\rError: به دلیل رخ دادن خطا در پرداخت، درخواست بازگشت وجه داده شد.";
-                        if($modules['cb_email_on_error']) notifyEmail($notify);
-                        if($modules['cb_telegram_on_error']) notifyTelegram($notify);
-                    }
+
+        if ($order_id == substr($InvoiceNumber, 0, -2)) {
+            $invoiceid = checkCbInvoiceID($order_id, $modules['name']);
+            if (isset($invoice_id) && !empty($invoiceid)) {
+                checkCbTransID($TransactionReferenceID);
+                if ($TransactionReferenceID != '') {
+                    $checkResult = PepCheckTransactionResult($TransactionReferenceID);
+                } else {
+                    $checkResult = PepCheckTransactionResult(null, $InvoiceNumber, $InvoiceDate, $TerminalID, $MerchantID);
                 }
-                else {
-                    $client->call('bpReversalRequest', $parameters, $namespace);
-                    logTransaction($modules["name"], array('invoiceid' => $invoice_id,'order_id' => $order_id,'amount' => $amount." ".(($modules['cb_gw_unit']>1) ? 'Toman' : 'Rial'),'tran_id' => $tran_id, 'status' => $bpVerifyRequest), "ناموفق");
-                    $notify['title'] = $cb_gw_name.' | '."تراکنش ناموفق";
-                    $notify['text']  = "\n\rGateway: $cb_gw_name\n\rAmount: $amount ".(($modules['cb_gw_unit']>1) ? 'Toman' : 'Rial')."\n\rOrder: $order_id\n\rInvoice: $invoice_id\n\rError: به دلیل رخ دادن خطا در پرداخت، درخواست بازگشت وجه داده شد.";
-                    if($modules['cb_email_on_error']) notifyEmail($notify);
-                    if($modules['cb_telegram_on_error']) notifyTelegram($notify);
+                if (isset($checkResult) && $checkResult->IsSuccess && $checkResult->InvoiceNumber == $InvoiceNumber) {
+                    $get_amount = $checkResult->Amount;
+
+                    if (strlen($amount) == 0 || $get_amount != $amount) {
+                        $message = 'مبلغ پرداختی نادرست است ، وجه کسر شده به صورت خودکار از سوی بانک به حساب شما بازگشت داده خواهد شد.';
+                    } else {
+                        $Request = PepVerifyRequest($InvoiceNumber, $InvoiceDate, $TerminalID, $MerchantID, $amount);
+                        if (isset($Request) && $Request->IsSuccess) {
+                            addInvoicePayment($invoice_id, $TransactionReferenceID, $amount/10, 0, $cb_gw_name);
+                            logTransaction($modules["name"], array('invoiceid' => $invoiceid, 'order_id' => $invoiceid, 'amount' => $amount/10, 'tran_id' => $TransactionReferenceID, 'refcode' => $TransactionReferenceID, 'status' => 'paid'), "موفق");
+                            $action = $CONFIG['SystemURL'] . "/viewinvoice.php?id=" . $invoice_id;
+                            header('Location: ' . $action);
+                            //print("<pre>".print_r($cb_output,true)."</pre>");
+                        } else {
+                            $message = $Request->Message;
+                        }
+                    }
+                } else {
+                    $message = 'پرداخت توسط شما انجام نشده است';
                 }
             } else {
-                logTransaction($modules["name"], array('invoiceid' => $invoice_id,'order_id' => $order_id,'amount' => $amount." ".(($modules['cb_gw_unit']>1) ? 'Toman' : 'Rial'),'tran_id' => $tran_id, 'status' => $_POST['ResCode']), "ناموفق");
-                $notify['title'] = $cb_gw_name.' | '."تراکنش ناموفق";
-                $notify['text']  = "\n\rGateway: $cb_gw_name\n\rAmount: $amount ".(($modules['cb_gw_unit']>1) ? 'Toman' : 'Rial')."\n\rOrder: $order_id\n\rInvoice: $invoice_id\n\rError: به دلیل رخ دادن خطا در پرداخت، درخواست بازگشت وجه داده شد.";
-                if($modules['cb_email_on_error']) notifyEmail($notify);
-                if($modules['cb_telegram_on_error']) notifyTelegram($notify);
+                $error_code = 'order_not_exist';
             }
-
-
+        } else {
+            $error_code = 'order_not_for_this_person';
         }
-        $action = $CONFIG['SystemURL'] . "/viewinvoice.php?id=" . $invoice_id;
-        header('Location: ' . $action);
-        //print("<pre>".print_r($cb_output,true)."</pre>");
+        display_error(isset($error_code) ? $error_code : null, $TransactionReferenceID, $order_id, $get_amount, isset($message) ? $message : '');
     }
     else {
         echo "invoice id is blank";

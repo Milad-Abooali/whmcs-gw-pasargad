@@ -244,7 +244,6 @@ function PepVerifyRequest($InvoiceNumber, $InvoiceDate, $TerminalCode, $Merchant
     return $result;
 }
 
-
 /**
  * Display Error
  * @param string $pay_status

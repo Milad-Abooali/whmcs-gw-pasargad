@@ -1,4 +1,4 @@
-<?php /** @noinspection PhpUndefinedClassInspection */
+<?php
 /**
  **************************************************************************
  * IranPasargadBank Gateway
@@ -14,6 +14,7 @@
  * @noinspection PhpDeprecationInspection
  * @noinspection PhpUndefinedMethodInspection
  * @noinspection PhpUnhandledExceptionInspection
+ * @noinspection PhpUndefinedClassInspection
  **************************************************************************
  */
 

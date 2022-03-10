@@ -419,7 +419,7 @@ if($action==='callback') {
             if (isset($checkResult) && $checkResult->IsSuccess && $checkResult->InvoiceNumber == $InvoiceNumber) {
                 $get_amount = $checkResult->Amount;
 
-                if (strlen($amount) == 0 || $get_amount != $amount) {
+                if (strlen($amount) == 0 || $get_amount != $amount_rial) {
                     $message = 'مبلغ پرداختی نادرست است ، وجه کسر شده به صورت خودکار از سوی بانک به حساب شما بازگشت داده خواهد شد.';
                 } else {
                     $Request = PepVerifyRequest($InvoiceNumber, $InvoiceDate, $TerminalID, $MerchantID, $amount);

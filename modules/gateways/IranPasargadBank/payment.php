@@ -452,7 +452,7 @@ if($action==='callback') {
 }
 elseif ($action==='send'){
     $order_id = $invoice_id . mt_rand(10, 100);
-    $Request = PepPayRequest($order_id, $modules['cb_gw_terminal_id'], $modules['cb_gw_merchant_id'], $amount, $callback_URL, '', $_POST['email']);
+    $Request = PepPayRequest($order_id, $modules['cb_gw_terminal_id'], $modules['cb_gw_merchant_id'], $amount_rial, $callback_URL, '', $_POST['email']);
     if (isset($Request) && $Request->IsSuccess) {
         redirect('https://pep.shaparak.ir/payment.aspx?n=' . $Request->Token);
     } else {

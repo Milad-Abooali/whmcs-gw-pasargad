@@ -422,7 +422,7 @@ if($action==='callback') {
                 if (strlen($amount) == 0 || $get_amount != $amount_rial) {
                     $message = 'مبلغ پرداختی نادرست است ، وجه کسر شده به صورت خودکار از سوی بانک به حساب شما بازگشت داده خواهد شد.';
                 } else {
-                    $Request = PepVerifyRequest($InvoiceNumber, $InvoiceDate, $TerminalID, $MerchantID, $amount);
+                    $Request = PepVerifyRequest($InvoiceNumber, $InvoiceDate, $TerminalID, $MerchantID, $amount_rial);
                     if (isset($Request) && $Request->IsSuccess) {
                         $log = array(
                             'Invoice'        => $invoice_id,
